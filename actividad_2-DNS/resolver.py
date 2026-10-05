@@ -24,7 +24,7 @@ def resolver(mensaje_consulta: bytes, ip_addr=root_ip) -> bytes:
         #checkear si el mensaje tiene la respuesta a la consulta
         if parsed_message["ANCOUNT"]> 0:
             for answer in parsed_message["answer"]:
-                if answer.rtype = 1:
+                if answer.rtype == 1:
                     return mensaje_consulta
 
 
@@ -52,7 +52,7 @@ def parse_DNS_message(dns_message):
 #Usar socket no orientado a objetos
 # Usar while loop creo
 
-# Hare la wea rapidito y veamos q sucede
+# Hacer rapidito y veamos q sucede
 
 if __name__ == "__main__":
 
