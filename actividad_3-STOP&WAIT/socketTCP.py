@@ -199,7 +199,7 @@ class SocketTCP():
     def send(self, message: bytes):
 
         #Parte 7: Refactor: esperar si llega mensaje SYN-ACK porque se perdio el ultimo paquete ACK de connect  
-        self.sock.settimeout(5)
+        self.sock.settimeout(10)
         try:
             
             #caso si llega: verificar que sea SYN_ACK y de ahi enviar ultimo ACK
@@ -342,21 +342,47 @@ class SocketTCP():
     def close(self):
         # primero creemos el mensaje FIN,  El FIN usa el seq_num actual como z
         FIN_segment = self.create_segment(ack=False, syn=False, fin=True, seq=self.seq_num, payload=b"")
-        self.sock.sendto(FIN_segment, self.dest_adr)
 
-        # Recepcionar mensaje FIN+ACK
-        mensaje , address = self.sock.recvfrom(self.buffer_size_UDP)
-        mensaje_parseado = self.parse_segment(mensaje)
+        # parte 8: esperar 3 veces recepcionar mensaje FIN+ACK y si no cerrar conexion c:
+        for intento in range(3):
+            self.sock.sendto(FIN_segment, self.dest_adr)
 
-        if mensaje_parseado["FIN"] == True and mensaje_parseado["ACK"] == True and mensaje_parseado["seq"] == self.seq_num + 1:
-            # mandar un mensaje de vuelta ACK:
-            ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num + 2, payload=b"")
-            self.sock.sendto(ACK_segment, self.dest_adr)
-            self.sock.close()
-            print("conexion cerrada")
+            # esperar FIN+ACK en timeout
+            self.sock.settimeout(self.timeout)
 
-        else: 
-            raise Exception("No llego mensaje FIN+ACK")
+            try:
+                mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
+                mensaje_parseado = self.parse_segment(mensaje)
+
+                if (mensaje_parseado["FIN"]and mensaje_parseado["ACK"]and mensaje_parseado["seq"] == self.seq_num + 1):
+                # Recibimos correctamente FIN+ACK
+                    ACK_segment = self.create_segment(ack=True,syn=False,fin=False,seq=self.seq_num + 2,payload=b"")
+
+                # Mandar el ACK 3 veces
+                for _ in range(3):
+                    self.sock.sendto(ACK_segment, self.dest_adr)
+
+                    # Esperar timeout entre cada envío
+                    self.sock.settimeout(self.timeout)
+
+                    try:
+                        self.sock.recvfrom(self.buffer_size_UDP)
+                    except socket.timeout:
+                        pass
+
+                self.sock.close()
+                print("conexion cerrada")
+                return
+
+            except socket.timeout:
+                print("Timeout: reenviando FIN")
+
+           # Llegamos al tercer timeout
+        print("No se recibio FIN+ACK despues de 3 timeouts")
+        print("Asumiendo que la contraparte se cerro")
+
+        self.sock.close()
+
 
     def recv_close(self):
 
@@ -367,20 +393,37 @@ class SocketTCP():
         if mensaje_parseado["FIN"]:
 
            # Guardamos el seq del FIN recibido
-           seq_fin = mensaje_parseado["seq"]
+            seq_fin = mensaje_parseado["seq"]
 
            # HOST B: responder FIN+ACK seq=z+1
-           FIN_ACK_segment = self.create_segment(ack=True,syn=False,fin=True,seq=seq_fin + 1,payload=b"")
-           self.sock.sendto(FIN_ACK_segment, self.dest_adr)
+            FIN_ACK_segment = self.create_segment(ack=True,syn=False,fin=True,seq=seq_fin + 1,payload=b"")
+            self.sock.sendto(FIN_ACK_segment, self.dest_adr)
 
-           # Recibir ACK seq=z+2
-           mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
-           mensaje_parseado = self.parse_segment(mensaje)
+            # Esperar ACK seq=z+2 hasta 3 timeouts
+            for intento in range(3):
 
-           if (mensaje_parseado["ACK"] and mensaje_parseado["seq"] == seq_fin + 2):
-               # Cierre completado
-               self.sock.close()
-               print("conexion cerrada")
+                self.sock.settimeout(self.timeout)
+
+                try:
+                    mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
+                    mensaje_parseado = self.parse_segment(mensaje)
+
+                    if (
+                        mensaje_parseado["ACK"]
+                        and mensaje_parseado["seq"] == seq_fin + 2
+                    ):
+                        # Cierre completado
+                        self.sock.close()
+                        print("conexion cerrada")
+                        return
+
+                except socket.timeout:
+                    print(f"Timeout {intento + 1}/3 esperando ACK final")
+
+        # Después del tercer timeout asumimos que la contraparte se cerró
+        print("No se recibio ACK final. Asumiendo que la contraparte se cerro.")
+
+        self.sock.close()
 
 
 # La idea es que aquí **no usas `self.seq_num` para calcular `z+1`**. Usas el `seq` que llegó en el FIN:
