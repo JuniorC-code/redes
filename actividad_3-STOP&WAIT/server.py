@@ -59,13 +59,11 @@ if __name__ == "__main__":
 
         # Si se recibió menos que el buffer solicitado,
         # probablemente ya recibimos todo.
-        if len(part) < 1024:
-            break
 
     print(message.decode())
 
     # Cerrar conexión
-    connection_socketTCP.close()
+    connection_socketTCP.recv_close()
 
 
 

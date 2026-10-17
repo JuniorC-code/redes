@@ -47,6 +47,7 @@ if __name__ == "__main__":
     client_socketTCP.send(message)
 
     # Cerrar conexión
+    
     client_socketTCP.close()
 
 
