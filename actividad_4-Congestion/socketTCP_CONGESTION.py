@@ -1,5 +1,6 @@
 import socket
 import random
+import time
 
 
 from socketUDP import SocketUDP
@@ -83,8 +84,8 @@ class SocketTCP():
             "payload": payload
         }
 
-# Anotar esto DONDE CORRESPONDE: 
-# ---> PAYLOAD SI USA INTS PARA MARCAR ALGUNN LARGO, POR LA NATURALEZA DE LA FUNCION DECODE() -> str debemos de usar int(parsed_message["payload"])
+    # Anotar esto DONDE CORRESPONDE: 
+    # ---> PAYLOAD SI USA INTS PARA MARCAR ALGUNN LARGO, POR LA NATURALEZA DE LA FUNCION DECODE() -> str debemos de usar int(parsed_message["payload"])
 
 
 
@@ -143,7 +144,7 @@ class SocketTCP():
 
 
 
-############################ ANOTACION
+    ############################ ANOTACION
     # Hay algo muy tricky en estas 2 funciones, si cambio la direccion de destino, tan pronto como se haga un send por parte del emisor, si la parte que uso accept no esta preparada con su nuevo socket, no se escuchara nada pues
     # se habra enviado un paquete a un lugar donde no habia nada escuchando.
     # => Antes de enviar el paquete ACK-SYN, ya se debe de crear el nuevo socket bindeado a su respectiva nueva direccion....
@@ -217,11 +218,18 @@ class SocketTCP():
 
     def send(self, message, mode="stop_and_wait"):
         if mode == "stop_and_wait":
-            self.send_using_stop_and_wait(message)
+            return self.send_using_stop_and_wait(message)
+
+        if mode == "go_back_n":
+            self.send_using_go_back_n(message)
     
     def recv(self, buff_size, mode="stop_and_wait"):
+
         if mode == "stop_and_wait":
-            self.recv_using_stop_and_wait(buff_size)
+            return self.recv_using_stop_and_wait(buff_size)
+
+        if mode == "go_back_n":
+            return self.recv_using_go_back_n(buff_size)
 
 
 
@@ -239,46 +247,46 @@ class SocketTCP():
     # La función close() debe implementar el cierre de conexión desde el lado del "Host A" según lo visto en el video.
     # HOST A --> manda fin seq z, recibe fin+ack z+1 y devuelve ack z+2
     def close(self):
-        # primero creemos el mensaje FIN,  El FIN usa el seq_num actual como z
+        # Obtener el socket UDP nativo directamente (evita activar timers de SocketUDP)
+        udp_socket = self.sock.socket_udp if hasattr(self.sock, "socket_udp") else self.sock
+
+        # Primero creamos el mensaje FIN
         FIN_segment = self.create_segment(ack=False, syn=False, fin=True, seq=self.seq_num, payload=b"")
 
-
-        # parte 8: esperar 3 veces recepcionar mensaje FIN+ACK y si no cerrar conexion c:
+        # Esperar 3 veces recepcionar mensaje FIN+ACK
         for intento in range(3):
-            self.sock.sendto(FIN_segment, self.dest_adr)
+            udp_socket.sendto(FIN_segment, self.dest_adr)
 
-            # esperar FIN+ACK en timeout
-            self.sock.settimeout(self.timeout)
+            # Esperar FIN+ACK en timeout
+            udp_socket.settimeout(self.timeout)
 
             try:
-                mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
+                mensaje, address = udp_socket.recvfrom(self.buffer_size_UDP)
                 mensaje_parseado = self.parse_segment(mensaje)
-
 
                 if (mensaje_parseado["FIN"] and mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num + 1):
                     # Recibimos correctamente FIN+ACK
-                    ACK_segment = self.create_segment(ack=True,syn=False,fin=False,seq=self.seq_num + 2,payload=b"")
+                    ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num + 2, payload=b"")
 
-                    # Mandar el ACK 3 veces
+                    # Mandar el ACK 3 veces usando el socket interno
                     for _ in range(3):
-                        self.sock.sendto(ACK_segment, self.dest_adr)
+                        udp_socket.sendto(ACK_segment, self.dest_adr)
 
                         # Esperar timeout entre cada envío
-                        self.sock.settimeout(self.timeout)
+                        udp_socket.settimeout(self.timeout)
 
                         try:
-                            self.sock.recvfrom(self.buffer_size_UDP)
-                        except (socket.timeout,ConnectionResetError):
+                            udp_socket.recvfrom(self.buffer_size_UDP)
+                        except (socket.timeout, ConnectionResetError):
                             pass
 
-                self.sock.close()
-                print("conexion cerrada")
-                return
+                    self.sock.close()
+                    print("conexion cerrada")
+                    return
 
             except socket.timeout:
                 print("Timeout: reenviando FIN")
 
-           # Llegamos al tercer timeout
         print("No se recibio FIN+ACK despues de 3 timeouts")
         print("Asumiendo que la contraparte se cerro")
 
@@ -483,28 +491,21 @@ class SocketTCP():
         y luego realiza la transición hacia SocketUDP para gestionar la ventana y sus temporizadores.
         """
 
-
-
-        # 1. Manejo del caso borde utilizando el socket.socket original
-        self.sock.settimeout(self.timeout)
-        try:
-            mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
-            mensaje_parseado = self.parse_segment(mensaje)
-            if mensaje_parseado["SYN"] and mensaje_parseado["ACK"] and direccion == self.handshake_addr:
-                ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-                self.sock.sendto(ACK_segment, self.handshake_addr)
-        except (socket.timeout, Exception):
-            pass
-
-
-
-
-
-
-        # 2. Transición a SocketUDP conservando el puerto local previamente asignado
+        # 1 y 2. Manejo del caso borde y transición a SocketUDP (SOLO si no se ha hecho la transición)
         if not isinstance(self.sock, SocketUDP):
+            self.sock.settimeout(self.timeout)
+            try:
+                mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
+                mensaje_parseado = self.parse_segment(mensaje)
+                if mensaje_parseado["SYN"] and mensaje_parseado["ACK"] and direccion == self.handshake_addr:
+                    ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                    self.sock.sendto(ACK_segment, self.handshake_addr)
+            except (socket.timeout, Exception):
+                pass    
+
+            # Transición a SocketUDP conservando el puerto local
             local_address = self.sock.getsockname()
-            self.sock.close()
+            self.sock.close()   
 
             new_socket_udp = SocketUDP()
             new_socket_udp.bind(local_address)
@@ -512,35 +513,47 @@ class SocketTCP():
 
 
 
-
-
-
-
         # 3. Envío del tamaño total del mensaje usando los temporizadores de SocketUDP
         message_length = len(message)
         self.sock.settimeout(5.0)
 
+        first_message = self.create_segment(
+            ack=False, syn=False, fin=False, seq=self.seq_num, payload=message_length.to_bytes(4, byteorder="big")
+        )
+
         while True:
-
-            first_message = self.create_segment(ack=False, syn=False, fin=False, seq=self.seq_num, payload=message_length.to_bytes(4, byteorder="big"))
+            # Enviar e informar por consola una sola vez por cada intento de retransmisión
             self.sock.sendto(first_message, self.dest_adr, timer_index=0)
+            print(self.parse_segment(first_message))
 
-            try:
-                mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
-                mensaje_parseado = self.parse_segment(mensaje)
+            ack_recibido = False
+            start_time = time.time()
 
+            # Bucle interno para consumir paquetes del buffer sin reenviar prematuramente
+            while time.time() - start_time < 5.0:
+                try:
+                    mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
+                    mensaje_parseado = self.parse_segment(mensaje)
 
-                if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num:
-                    self.sock.stop_timer(0)
+                    # Verificar ACK correspondiente
+                    if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num:
+                        self.safe_stop_timer(0)
+                        ack_recibido = True
+                        break
+                except (TimeoutError, socket.timeout):
+                    break
+                except Exception:
                     break
 
+            if ack_recibido:
+                break
 
-            except TimeoutError:
-                print("Timeout mensaje inicial (largo). Reenviando...")
-                self.sock.stop_timer(0)
+            print("Timeout o respuesta inválida para mensaje inicial (largo). Reenviando...")
+            self.safe_stop_timer(0)
 
         if message_length == 0:
             return
+
 
 
 
@@ -586,6 +599,7 @@ class SocketTCP():
                     seq = window.get_sequence_number(i)
                     tcp_segment = self.create_segment(ack=False, syn=False, fin=False, seq=seq, payload=data)
                     self.sock.sendto(tcp_segment, self.dest_adr, timer_index=0)
+                    print(self.parse_segment(tcp_segment))
                     sent[i] = True
 
 
@@ -629,16 +643,12 @@ class SocketTCP():
                         chunks_acked += steps_to_move
                         sent = sent[steps_to_move:] + [False] * steps_to_move
                         self.seq_num = ack_seq
-                        self.sock.stop_timer(0)
-
-                        if window.get_data(0) is not None:
-                            sent[0] = False
+                        self.safe_stop_timer(0)
 
             except TimeoutError:
                 print("Timeout en Go-Back-N. Reenviando ventana completa desde el paquete base...")
-                self.sock.stop_timer(0)
+                self.safe_stop_timer(0)
                 sent = [False] * window_size
-
 
 
 
@@ -663,92 +673,104 @@ class SocketTCP():
 
 
 
-def recv_using_go_back_n(self, buff_size: int) -> bytes:
-    """
-    Maneja la recepción Go Back-N. Si el socket aún es del tipo socket.socket, realiza
-    la transición hacia SocketUDP antes de procesar la entrada de datos.
-    """
+    def recv_using_go_back_n(self, buff_size: int) -> bytes:
+        """
+        Maneja la recepción Go Back-N. Si el socket aún es del tipo socket.socket, realiza
+        la transición hacia SocketUDP antes de procesar la entrada de datos.
+        """
+
+
+        # 1. Transición a SocketUDP conservando la dirección/puerto si aún no se ha realizado
+        if not isinstance(self.sock, SocketUDP):
+            local_address = self.sock.getsockname()
+            self.sock.close()
+
+            new_socket_udp = SocketUDP()
+            new_socket_udp.bind(local_address)
+            self.sock = new_socket_udp
 
 
 
+        print
+
+        # 2. Recepción del mensaje de tamaño total
+        if self.remaining_bytes == 0:
+            if self.fin_segment_received is not None:
+                return b""
+
+            while True:
+                mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
+                mensaje_parseado = self.parse_segment(mensaje)
+
+                if mensaje_parseado["FIN"]:
+                    self.fin_segment_received = (mensaje_parseado, address)
+                    return b""
+
+                # Validar que sea el paquete de largo esperado (seq correcto y 4 bytes)
+                if mensaje_parseado["seq"] == self.seq_num and len(mensaje_parseado["payload"]) == 4:
+                    self.remaining_bytes = int.from_bytes(mensaje_parseado["payload"], byteorder="big")
+                    self.seq_num = mensaje_parseado["seq"]
+
+                    print("enviando seggemento ack")
+                    first_ack = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                    self.sock.sendto(first_ack, address)
+                    break
+                else:
+                    # Paquete basurita/duplicado de una transmisión previa: descartar y responder ACK
+                    ack_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                    self.sock.sendto(ack_segment, address)
 
 
-    # 1. Transición a SocketUDP conservando la dirección/puerto si aún no se ha realizado
-    if not isinstance(self.sock, SocketUDP):
-        local_address = self.sock.getsockname()
-        self.sock.close()
+        # 3. Configuración de buffer y secuencia esperada (Receptor N=1)
+        target = min(self.remaining_bytes + len(self.pending_data), buff_size)
+        payload_buffer = self.pending_data
+        self.pending_data = b""
 
-        new_socket_udp = SocketUDP()
-        new_socket_udp.bind(local_address)
-        self.sock = new_socket_udp
+        expected_seq = self.seq_num
 
 
+        # 4. Bucle de recepción estricta en orden
+        while len(payload_buffer) < target and self.remaining_bytes > 0:
 
 
-
-    # 2. Recepción del mensaje de tamaño total
-    if self.remaining_bytes == 0:
-        if self.fin_segment_received is not None:
-            return b""
-
-        mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
-        mensaje_parseado = self.parse_segment(mensaje)
-
-        if mensaje_parseado["FIN"]:
-            self.fin_segment_received = (mensaje_parseado, address)
-            return b""
-
-        self.remaining_bytes = int.from_bytes(mensaje_parseado["payload"], byteorder="big")
-        self.seq_num = mensaje_parseado["seq"]
-
-        first_ack = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-        self.sock.sendto(first_ack, address)
+            mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
+            mensaje_parseado = self.parse_segment(mensaje)
 
 
+            if mensaje_parseado["FIN"]:
+                self.fin_segment_received = (mensaje_parseado, address)
+                break
+
+            seq = mensaje_parseado["seq"]
+            payload = mensaje_parseado["payload"]
 
 
+            if seq == expected_seq:
+                payload_buffer += payload
+                self.remaining_bytes -= len(payload)
+                expected_seq += len(payload)
+                self.seq_num = expected_seq
 
-    # 3. Configuración de buffer y secuencia esperada (Receptor N=1)
-    target = min(self.remaining_bytes + len(self.pending_data), buff_size)
-    payload_buffer = self.pending_data
-    self.pending_data = b""
+                ack_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                self.sock.sendto(ack_segment, address)
+            else:
 
-    expected_seq = self.seq_num
-
-
-
-
-
-    # 4. Bucle de recepción estricta en orden
-    while len(payload_buffer) < target and self.remaining_bytes > 0:
-        mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
-        mensaje_parseado = self.parse_segment(mensaje)
-
-        if mensaje_parseado["FIN"]:
-            self.fin_segment_received = (mensaje_parseado, address)
-            break
-
-        seq = mensaje_parseado["seq"]
-        payload = mensaje_parseado["payload"]
-
-        if seq == expected_seq:
-            payload_buffer += payload
-            self.remaining_bytes -= len(payload)
-            expected_seq += len(payload)
-            self.seq_num = expected_seq
-
-            ack_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-            self.sock.sendto(ack_segment, address)
-        else:
-
-            # llega un duplicado o no en orden de lo q se esperaba => descartar y no mandar nada...
+                # llega un duplicado o no en orden de lo q se esperaba => descartar y no mandar nada...
 
 
-            ack_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-            self.sock.sendto(ack_segment, address)
+                ack_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                self.sock.sendto(ack_segment, address)
 
-    if len(payload_buffer) > target:
-        self.pending_data = payload_buffer[target:]
-        payload_buffer = payload_buffer[:target]
 
-    return payload_buffer
+        if len(payload_buffer) > target:
+            self.pending_data = payload_buffer[target:]
+            payload_buffer = payload_buffer[:target]
+
+        return payload_buffer
+
+    def safe_stop_timer(self, timer_index=0):
+        try:
+            if hasattr(self.sock, 'stop_timer'):
+                self.sock.stop_timer(timer_index)
+        except (AttributeError, Exception):
+            pass
