@@ -37,35 +37,97 @@ server_address = ("localhost", 8000)
 
 ####################
 
+# tests para debuugger:
+
+
+# server_address = ("localhost", 8000)
+
+# # Crear e iniciar el servidor
+# server_socket = socketTCP_CONGESTION.SocketTCP()
+# server_socket.bind(server_address)
+
+# print("[SERVIDOR] Escuchando en", server_address)
+# connection_socket, client_addr = server_socket.accept()
+# print(f"[SERVIDOR] Conexión establecida desde: {client_addr}")
+
+# # Recibir el mensaje largo
+# buff_size = 1024
+# print("\n[SERVIDOR] Recibiendo mensaje...")
+# received_message = connection_socket.recv(buff_size, mode="go_back_n")
+
+# print("\n[SERVIDOR] Resultado de recepción:")
+# print("Mensaje:", received_message.decode(errors="ignore"))
+
+# # Cierre de conexión
+# print("\n[SERVIDOR] Esperando cierre de conexión...")
+# connection_socket.recv_close()
+# print("[SERVIDOR] Conexión cerrada.")
+
+#######################
+
+#TEST PARA 3.6 final
+
+import socketTCP_CONGESTION
+
+def run_server():
+    server_address = ("localhost", 8000)
+    server_socket = socketTCP_CONGESTION.SocketTCP()
+    server_socket.bind(server_address)
+
+    print("[SERVIDOR] Escuchando en", server_address)
+    connection_socket, client_addr = server_socket.accept()
+    print(f"[SERVIDOR] Conexión establecida desde: {client_addr}")
+
+    buff_size = 2048
+    print("\n[SERVIDOR] Recibiendo mensaje...")
+    received_message = connection_socket.recv(buff_size, mode="go_back_n")
+
+    print("\n[SERVIDOR] Resultado de recepción:")
+    print("Mensaje:", received_message.decode(errors="ignore"))
+
+    print("\n[SERVIDOR] Esperando cierre de conexión...")
+    connection_socket.recv_close()
+    print("[SERVIDOR] Conexión cerrada exitosamente.")
+
 if __name__ == "__main__":
+    run_server()
 
-    # Crear socket TCP
-    server_socketTCP = socketTCP_CONGESTION.SocketTCP()
 
-    # Bind al puerto 8000
-    server_socketTCP.bind(server_address)
 
-    # Esperar conexión
-    connection_socketTCP, new_address = server_socketTCP.accept()
 
-    # Recibir el archivo completo
-    message = b""
 
-    while True:
+#######################
 
-        part = connection_socketTCP.recv(1024, mode= "go_back_n")
 
-        if not part:
-            break
+# if __name__ == "__main__":
 
-        message += part
+#     # Crear socket TCP
+#     server_socketTCP = socketTCP_CONGESTION.SocketTCP()
 
-        # Si se recibió menos que el buffer solicitado,
-        # probablemente ya recibimos todo.
-        if len(part) < 1024:
-            break
+#     # Bind al puerto 8000
+#     server_socketTCP.bind(server_address)
 
-    print(message.decode())
+#     # Esperar conexión
+#     connection_socketTCP, new_address = server_socketTCP.accept()
 
-    # Cerrar conexión
-    connection_socketTCP.recv_close()
+#     # Recibir el archivo completo
+#     message = b""
+
+#     while True:
+
+#         part = connection_socketTCP.recv(1024, mode= "go_back_n")
+
+#         if not part:
+#             break
+
+#         message += part
+
+#         # Si se recibió menos que el buffer solicitado,
+#         # probablemente ya recibimos todo.
+#         if len(part) < 1024:
+#             break
+
+#     print(message.decode())
+
+#     # Cerrar conexión
+#     connection_socketTCP.recv_close()
