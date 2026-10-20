@@ -437,26 +437,3 @@ class SocketTCP():
         print("No se recibio ACK final. Asumiendo que la contraparte se cerro.")
 
         self.sock.close()
-
-
-# La idea es que aquí **no usas `self.seq_num` para calcular `z+1`**. Usas el `seq` que llegó en el FIN:
-# 
-# ```python
-# seq_fin = mensaje_parseado["seq"]
-# ```
-# 
-# porque ese valor es `z`.
-# 
-# Entonces:
-# 
-# ```text
-# FIN recibido:       z
-# FIN+ACK enviado:    z + 1
-# ACK recibido:       z + 2
-# ```
-# 
-# Esto además hace que `recv_close()` funcione independientemente de cuál sea el `self.seq_num` actual del Host B, siguiendo exactamente la convención simplificada del protocolo de tu tarea.
-# 
-# Una diferencia importante respecto de `close()` es que en `close()` tú **inicias** el cierre, por eso partes desde tu propio `self.seq_num`. En `recv_close()` tú **recibes** el inicio del cierre, por eso partes desde el `seq` recibido.
-
-

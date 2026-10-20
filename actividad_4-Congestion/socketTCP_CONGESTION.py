@@ -1,17 +1,8 @@
 import socket
 import random
-import time
-
-
 from socketUDP import SocketUDP
 from slidingWindowCC import SlidingWindowCC
 import CongestionControl
-
-
-# Ahora vamos a crear la clase  SocketTCP (guarde la clase en un tercer archivo distinto al cliente y el servidor). El constructor de esta clase deberá ser capaz 
-#de almacenar todos los recursos que va a necesitar para la comunicación (socket UDP, dirección de destino, número de secuencia, todo lo que usted considere necesario).
-#Su constructor no debe recibir parámetros, es decir, se invoca como:
-
 
 class SocketTCP():
     def __init__(self):
@@ -30,7 +21,7 @@ class SocketTCP():
 
         self.handshake_addr = None
 
-
+        # Variable para casos borde de transmicion de fin segments
         self.fin_segment_received = None
 
 
@@ -39,18 +30,11 @@ class SocketTCP():
         self.debug = False  # Modo debug desactivado por defecto
 
 
-    # Inicialmente queria que SocketTCP tuviera en sus atributos ACK SYN FIN y n°secuencia, pero socketTCP representa un socket,
-    # osea la via de comunicacion, mientras que el segmento TCP es el paquete q se envia, por ello es mejor que sean los propios segmentos los que tengan dichos atributos.
-    # y ademas, como se trata de simplemente un indicador de flag, basta con representarlos como bytes, donde podemos usar el primer byte y sus bits para los flags.
-    # Luego podemos usar el resto de bytes para el numero de secuencia, que por temas de largo basta con que sea de largo 4 bytes
-    # esto implica que finalmente para los headers usaremos 5 bytes. 
-
     # ya con todo eso, partamos, recibamos en create segment bools para ACK, SYN, FIN y un int para n° secuencia, y creemos un segmento TCP con ello.
     # digamos que el primer bit del primer byte es ACK, el segundo bit es SYN y el tercer bit es FIN, y los 4 bytes restantes son para el n° de secuencia.
     # bit prendido -> flag activada
-    def create_segment(self, ack: bool, syn: bool, fin: bool, seq: int, payload: bytes):
 
-        # Enseguida crearemos los bits segun flags y lo añadiremos a el byte que representa a estos.
+    def create_segment(self, ack: bool, syn: bool, fin: bool, seq: int, payload: bytes):
 
         flags = 0b00000000
 
@@ -92,23 +76,15 @@ class SocketTCP():
             "payload": payload
         }
 
-    # Anotar esto DONDE CORRESPONDE: 
-    # ---> PAYLOAD SI USA INTS PARA MARCAR ALGUNN LARGO, POR LA NATURALEZA DE LA FUNCION DECODE() -> str debemos de usar int(parsed_message["payload"])
-
-
-
     # Parte 4 Implementar 3-way handshake:
 
     # - bind(address) : Función que se encarga de que el objeto socketTCP escuche en la dirección address.
     def bind(self, address):
         self.sock.bind(address)
 
-    # - connect(address): Función que inicia la conexión desde un objeto socketTCP con otro que se encuentra escuchando en la dirección address. 
-    # Dentro de esta función deberá implementar el lado del cliente del 3-way handshake. Por simplicidad, haga que su número de secuencia inicial
-    #  sea elegido aleatoriamente entre 0 y 100.
-
+    # Función que inicia la conexión desde un objeto socketTCP con otro que se encuentra escuchando en la dirección address. 
+    # Por simplicidad, haga que su número de secuencia inicial sea elegido aleatoriamente entre 0 y 100.
     # Por comodidad, al hacer la conexion el seq_num simplemente se aumenta en 1 con cada segmento recibido.
-
     # Cambio en funcion parte 6: Implementar stop & wait...
 
     def connect(self, address):
@@ -204,26 +180,6 @@ class SocketTCP():
 
         return new_socket, new_address
 
-    # Parte 5 STOP & WAIT
-
-    # Optimizable el codigo, esta bien feito y tiene varios codigos duplicados pero creo que sirve...
-    # modo de uso: despues de ser creado un objeto socketTCP por accept(...) este tendra ya bindeada la dest_address y el atributo dest_address como el nuevo
-    #  y para enviar mensajes solo usaremos sendto()
-
-    # Para manejo de primer mensaje, por simplicidad de ahora solo hare que el payload diga: "primer mensaje, largo total es x bytes"
-
-
-
-
-
-
-
-
-
-
-
-
-
     def send(self, message, mode="stop_and_wait"):
         if mode == "stop_and_wait":
             return self.send_using_stop_and_wait(message)
@@ -238,15 +194,6 @@ class SocketTCP():
 
         if mode == "go_back_n":
             return self.recv_using_go_back_n(buff_size)
-
-
-
-
-
-
-
-
-
 
 
 
@@ -344,334 +291,168 @@ class SocketTCP():
 
 
     #2.2
-    def send_using_stop_and_wait(self, message):
-        
-        #Parte 7: Refactor: esperar si llega mensaje SYN-ACK porque se perdio el ultimo paquete ACK de connect  
-        self.sock.settimeout(10)
-        try:
-            
-            #caso si llega: verificar que sea SYN_ACK y de ahi enviar ultimo ACK
-            mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
-            mensaje_parseado = self.parse_segment(mensaje)
-
-            if (mensaje_parseado["SYN"]and mensaje_parseado["ACK"]and direccion == self.handshake_addr):
-
-                ACK_segment = self.create_segment(ack=True,syn=False,fin=False,seq=self.seq_num,payload=b"")
-                self.sock.sendto(ACK_segment, self.handshake_addr)
-
-        except socket.timeout:
-
-            # Caso no llega nada --> llego correctamente el ACK final.
-            pass
-
-        # Añadir al largo tambien el primer 
-        message_lenght = len(message) 
-
-        # Esperar confirmacion por parte de receptor con 5 segundos
-        # Ademas, actualizar el numero de secuencia al que el receptor nos devolvio...
-
-            ############################################ CASO ESPECIAL: PRIMER MENSAJE######################################################
-        while True:
-
-            # mandar primer mensaje con el largo del mensaje (este queda como caso aparte pues el receptor devolvera el mismo n°secuencia para no enredarnos con el largo del mensaje+largo primer mensaje)
-            first_message = self.create_segment(ack=False, syn=False, fin=False, seq=self.seq_num, payload= message_lenght.to_bytes(4, byteorder="big"))
-            self.sock.sendto(first_message,self.dest_adr)
-
-            self.sock.settimeout(5)
-            try:
-                mensaje, direccion = self.sock.recvfrom(21)
-                mensaje_parseado = self.parse_segment(mensaje)
-
-                # revisar si mensaje que llego es de tipo ACK  (caso que no, volver a mandar mensaje noma...)
-                if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num:
-                    self.seq_num = mensaje_parseado["seq"]
-                    break
-
-            except socket.timeout:
-                print("No se recibio confirmacion, reenviando mensaje")
-
-
-            ############################################ CASO: RESTO DE MENSAJES ######################################################
-        # iteracion con while para enviar resto de mensajes y separarlos segun corresponda. (en conjunto con su respectivo n° secuencia...)
-        for i in range(0,len(message), 16):
-           packet = message[i:i+16]
-           tcp_segment = self.create_segment(ack=False, syn=False, fin=False, seq=self.seq_num , payload=packet)
-           # enviar mensajes y ver si son confirmados...
-           # usando logica de esperar confirmacion y en caso que si, terminar el ciclo para ese segmento en especifico, actualizando el n° de secuencia al que devolvio el receptor
-           while True:
-               # enviar mensaje
-               self.sock.sendto(tcp_segment, self.dest_adr)
-               #timeout para confirmacion
-               self.sock.settimeout(5)
-               try:
-                   mensaje, direccion = self.sock.recvfrom(21)
-                   mensaje_parseado = self.parse_segment(mensaje)
-                   # revisar si mensaje que llego es de tipo ACK  (caso que no, volver a mandar mensaje noma...)
-                   if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num + len(packet):
-                       self.seq_num = mensaje_parseado["seq"]
-                       break
-               except socket.timeout:
-                   print("No se recibio confirmacion, reenviando mensaje")
-                
-
-    def recv_using_stop_and_wait(self, buff_size):
-        
-        # if inicial en caso que ya se haya retornado anteriormente la misma funcion recv, asi podemos seguir trabajando sin perder bytes guardados del ultimo paquete UDP que llego al recv anterior
-        if self.remaining_bytes == 0:
-            if self.fin_segment_received is not None:
-                return b""
-
-            #obtener primer mensaje y mandar confirmacion a quien nos lo mando.
-            mensaje, address = self.sock.recvfrom(self.buffer_size_UDP)
-            mensaje_parseado = self.parse_segment(mensaje)
-
-            # DETECTAR SI LLEGÓ FIN EN LUGAR DE INICIO DE MENSAJE
-            if mensaje_parseado["FIN"]:
-                self.fin_segment_received = (mensaje_parseado, address)
-                return b""
-
-            # Obtener message_lenght, guardar los bytes restantes... (queda horrible porque parse_segment lo decodea, quizas cambiar despues cuando tenga mas tiempo....)
-            self.remaining_bytes = self.remaining_bytes = int.from_bytes(mensaje_parseado["payload"],byteorder="big")
-            self.seq_num = mensaje_parseado["seq"]
-
-            # Devolver mensaje de confirmacion a emisor
-            first_message = self.create_segment(ack=True, syn=False, fin=False, seq=mensaje_parseado["seq"], payload= b"")
-            self.sock.sendto(first_message,address)
-
-        #ok, con eso tenemos el primer mensaje listo.
-
-        # variable para el momento donde debemos parar la iteracion:
-        target = min(self.remaining_bytes + len(self.pending_data), buff_size)
-
-        # definimos nuestro payload_buffer con la data que quedo de recv's anteriores y la volvemos a dejar vacia
-        payload_buffer = self.pending_data
-        self.pending_data = b""
-
-        while len(payload_buffer) < target:
-
-            # obtener mensaje del emisor
-            mensaje, address =  self.sock.recvfrom(self.buffer_size_UDP)
-            mensaje_parseado = self.parse_segment(mensaje)
-            
-            # revisar n°secuencia (por la implementacion del send de arriba, el 1er y segundo mensaje tendran mismo n°secuencia => como ya obtuvimos 1er n°, podemos comprobar que llego el segundo 
-            # verificando que el n° secuencia sea el mismo que el de nuestro objeto c:)
-            if mensaje_parseado["seq"] == self.seq_num:
-
-                # recepecion de paquete nuevo, sumar largo a nuestro seq_num, guardar nueva data en payload_buffer y restar de los bytes que nos faltan por leer
-                self.seq_num += len(mensaje_parseado["payload"])
-                payload_buffer += mensaje_parseado["payload"]
-                self.remaining_bytes -= len(mensaje_parseado["payload"])
-
-                #enviar confirmacion a emisor
-                ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-                
-                self.sock.sendto( ACK_segment,address)
-
-            # caso donde llega mensje q no corresponde --> Mandar confirmacion anterior solamente
-            else: 
-                ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-                self.sock.sendto(ACK_segment,address)
-        
-        # Caso donde tenemos el payload completo pero sobraron datos pues 
-        # los datos que nos faltaban eran menos a lo que una llamada a recvfrom nos da
-
-        if len(payload_buffer) > target:
-            self.pending_data = payload_buffer[target:]
-            payload_buffer = payload_buffer[:target]
-
-        return payload_buffer
-
-
-
-
-
-
-
-
-
-
-
-
-
     def send_using_go_back_n(self, message: bytes):
-        """
-        Maneja el envío Go Back-N con Control de Congestión dinámico y manejo
-        del caso borde de ventana reducida.
-        """
-
-        # 1. Transición a SocketUDP y manejo de ACK pendiente de handshake (caso borde)
-        if not isinstance(self.sock, SocketUDP):
-            self.sock.settimeout(self.timeout)
-            try:
-                mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
-                mensaje_parseado = self.parse_segment(mensaje)
-                if mensaje_parseado["SYN"] and mensaje_parseado["ACK"] and direccion == self.handshake_addr:
-                    ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
-                    self.sock.sendto(ACK_segment, self.handshake_addr)
-            except (socket.timeout, Exception):
-                pass    
-
-            local_address = self.sock.getsockname()
-            self.sock.close()   
-
-            new_socket_udp = SocketUDP()
-            new_socket_udp.bind(local_address)
-            self.sock = new_socket_udp
-
-        # 2. Envío de cabecera con el tamaño total del mensaje
-        message_length = len(message)
-        self.sock.settimeout(5.0)
-
-        first_message = self.create_segment(
-            ack=False, syn=False, fin=False, seq=self.seq_num, payload=message_length.to_bytes(4, byteorder="big")
-        )
-
-        while True:
-            self.sock.sendto(first_message, self.dest_adr, timer_index=0)
-            if self.debug:
-                print(self.parse_segment(first_message))
-
-            ack_recibido = False
-            start_time = time.time()
-        
-            while time.time() - start_time < 5.0:
+    
+            # 1. Transición a SocketUDP y manejo de ACK pendiente de handshake (caso borde)
+            if not isinstance(self.sock, SocketUDP):
+                self.sock.settimeout(self.timeout)
                 try:
                     mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
                     mensaje_parseado = self.parse_segment(mensaje)
+                    if mensaje_parseado["SYN"] and mensaje_parseado["ACK"] and direccion == self.handshake_addr:
+                        ACK_segment = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
+                        self.sock.sendto(ACK_segment, self.handshake_addr)
+                except (socket.timeout, Exception):
+                    pass        
 
-                    if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num:
-                        self.safe_stop_timer(0)
-                        ack_recibido = True
-                        break
-                except (TimeoutError, socket.timeout):
-                    break
-                except Exception:
-                    break
+                local_address = self.sock.getsockname()
+                self.sock.close()       
 
-            if ack_recibido:
-                break
+                new_socket_udp = SocketUDP()
+                new_socket_udp.bind(local_address)
+                self.sock = new_socket_udp  
 
-            print("Timeout o respuesta inválida para mensaje inicial. Reenviando...")
-            self.safe_stop_timer(0)
+            # 2. Envío de cabecera con el tamaño total del mensaje
+            message_length = len(message)
+            self.sock.settimeout(5.0)   
 
-        if message_length == 0:
-            return
+            first_message = self.create_segment(
+                ack=False, syn=False, fin=False, seq=self.seq_num, payload=message_length.to_bytes(4, byteorder="big")) 
 
-        # 3. Fragmentación del mensaje en trozos de MSS bytes
-        MSS = 8
-        data_list = [message[i : i + MSS] for i in range(0, message_length, MSS)]
-        total_chunks = len(data_list)
+            while True:
+                self.sock.sendto(first_message, self.dest_adr, timer_index=0)
+                if self.debug:
+                    print(self.parse_segment(first_message))    
 
-        # 4. Inicialización de CongestionControl, window_size y SlidingWindowCC
-        if self.congestion_control_on:
-            congestion_controller = CongestionControl.CongestionControl(MSS=MSS)
-            window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))
-        else:
-            congestion_controller = None
-            window_size = 8
+                ack_recibido = False
+                while True:
+                    try:
+                        mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
+                        mensaje_parseado = self.parse_segment(mensaje)  
 
-        data_window = SlidingWindowCC(
-            window_size=window_size,
-            data_list=data_list,
-            initial_seq=self.seq_num
-        )
-
-        sent = [False] * total_chunks
-        chunks_acked = 0
-        self.sock.settimeout(5.0)
-
-        # 5. Bucle principal de transmisión Go Back-N
-        while chunks_acked < total_chunks:
-
-            # Sincronizar data_window con el window_size actual
-            data_window.update_window_size(window_size)
-
-            self.print_debug_cc(congestion_controller, "INICIO VENTANA",data_window)
-
-            # Garantizar que el arreglo de rastreo 'sent' tenga capacidad suficiente
-            while len(sent) < data_window.window_size:
-                sent.append(False)
-
-            # Enviar consecutivamente todos los elementos no enviados dentro de la ventana
-            for i in range(data_window.window_size):
-                data = data_window.get_data(i)
-                if data is None:
-                    break
-
-                if not sent[i]:
-                    seq = data_window.get_sequence_number(i)
-                    tcp_segment = self.create_segment(
-                        ack=False, syn=False, fin=False, seq=seq, payload=data
-                    )
-                    self.sock.sendto(tcp_segment, self.dest_adr, timer_index=0)
-                    if self.debug:
-                        print(self.parse_segment(tcp_segment))
-                    sent[i] = True
-
-            # Esperar confirmación (ACK) o Timeout
-            try:
-                mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
-                mensaje_parseado = self.parse_segment(mensaje)
-
-                if mensaje_parseado["ACK"]:
-                    ack_seq = mensaje_parseado["seq"]
-
-                    # Bucle para procesar el ACK, incluyendo la resolución del CASO BORDE
-                    # (cuando el ACK excede el límite de la ventana reducida por el CC)
-                    while chunks_acked < total_chunks:
-                        current_wnd_size = data_window.window_size
-                        steps_to_move = 0
-
-                        for i in range(current_wnd_size):
-                            data_i = data_window.get_data(i)
-                            if data_i is None:
-                                break
-
-                            seq_i = data_window.get_sequence_number(i)
-                            expected_ack = seq_i + len(data_i)
-
-                            if ack_seq >= expected_ack:
-                                steps_to_move = i + 1
-
-                        if steps_to_move == 0:
-                            break  # El ACK no confirma ningún paquete adicional en la ventana actual
-
-                        # Desplazar la ventana según las confirmaciones
-                        data_window.move_window(steps_to_move)
-                        chunks_acked += steps_to_move
-                        sent = sent[steps_to_move:] + [False] * steps_to_move
-                        self.seq_num = ack_seq
-                        self.safe_stop_timer(0)
-
-                        # Si el Control de Congestión está activo, procesar eventos y actualizar window_size
-                        if self.congestion_control_on and congestion_controller is not None:
-                            for _ in range(steps_to_move):
-                                congestion_controller.event_ack_received()
-
-                            window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))
-                            data_window.update_window_size(window_size)
-                            self.print_debug_cc(congestion_controller, "ACK RECIBIDO", data_window)
-
-                        # CASO BORDE: si el ACK cayó dentro del rango de la ventana previa
-                        # (no superó el final de la ventana completa), finalizar el procesamiento del ACK
-                        if steps_to_move < current_wnd_size:
+                        if mensaje_parseado["ACK"] and mensaje_parseado["seq"] == self.seq_num:
+                            self.safe_stop_timer(0)
+                            ack_recibido = True
                             break
+                    except (TimeoutError, socket.timeout):
+                        print("Timeout o respuesta inválida para mensaje inicial. Reenviando...")
+                        self.safe_stop_timer(0)
+                        break   
 
-            except (TimeoutError, socket.timeout):
-                print("Timeout en Go-Back-N. Reenviando...")
-                self.safe_stop_timer(0)
+                if ack_recibido:
+                    break   
 
-                # Evento Timeout en Control de Congestión
-                if self.congestion_control_on and congestion_controller is not None:
-                    congestion_controller.event_timeout()
-                    window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))
-                    data_window.update_window_size(window_size)
-                    self.print_debug_cc(congestion_controller, "TIMEOUT", data_window)
+            if message_length == 0:
+                return  
 
-                # Reiniciar banderas de envío para retransmitir la ventana actual
-                sent = [False] * total_chunks
+            # 3. Fragmentación del mensaje en trozos de MSS bytes
+            MSS = 8
+            data_list = [message[i : i + MSS] for i in range(0, message_length, MSS)]
+            total_chunks = len(data_list)   
 
+            # 4. Inicialización de CongestionControl, window_size y SlidingWindowCC 
 
+            if self.congestion_control_on:
+                congestion_controller = CongestionControl.CongestionControl(MSS=MSS)
+                window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))      # Calcular cuantos segmentos caben en la vantana    
+
+            else:
+                congestion_controller = None
+                window_size = 8 
+
+            data_window = SlidingWindowCC(window_size=window_size,data_list=data_list,initial_seq=self.seq_num) 
+
+            sent = [False] * total_chunks
+            chunks_acked = 0
+            self.sock.settimeout(5.0)   
+
+            # 5. Bucle principal de transmisión Go Back-N
+            while chunks_acked < total_chunks:  
+
+                # Sincronizar data_window con el window_size actual
+                data_window.update_window_size(window_size) 
+
+                self.print_debug_cc(congestion_controller, "INICIO VENTANA",data_window)    
+
+                # Garantizar que el arreglo de rastreo 'sent' tenga capacidad suficiente
+                while len(sent) < data_window.window_size:
+                    sent.append(False)  
+
+                # Enviar consecutivamente todos los elementos no enviados dentro de la ventana
+                for i in range(data_window.window_size):
+                    data = data_window.get_data(i)
+                    if data is None:
+                        break   
+
+                    if not sent[i]:
+                        seq = data_window.get_sequence_number(i)
+                        tcp_segment = self.create_segment(ack=False, syn=False, fin=False, seq=seq, payload=data)
+                        self.sock.sendto(tcp_segment, self.dest_adr, timer_index=0)
+                        if self.debug:
+                            print(self.parse_segment(tcp_segment))
+                        sent[i] = True  
+
+                # Esperar confirmación (ACK) o Timeout
+                try:
+                    mensaje, direccion = self.sock.recvfrom(self.buffer_size_UDP)
+                    mensaje_parseado = self.parse_segment(mensaje)  
+
+                    if mensaje_parseado["ACK"]:
+                        ack_seq = mensaje_parseado["seq"]   
+
+                        # Bucle para procesar el ACK, incluyendo cuando el ACK excede el límite de la ventana reducida por el CC
+                        while chunks_acked < total_chunks:
+                            current_wnd_size = data_window.window_size
+                            steps_to_move = 0   
+
+                            for i in range(current_wnd_size):
+                                data_i = data_window.get_data(i)
+                                if data_i is None:
+                                    break   
+
+                                seq_i = data_window.get_sequence_number(i)
+                                expected_ack = seq_i + len(data_i)  
+
+                                if ack_seq >= expected_ack:
+                                    steps_to_move = i + 1   
+
+                            if steps_to_move == 0:
+                                break  # El ACK no confirma ningún paquete adicional en la ventana actual   
+
+                            # Desplazar la ventana según las confirmaciones
+                            data_window.move_window(steps_to_move)
+                            chunks_acked += steps_to_move
+                            sent = sent[steps_to_move:] + [False] * steps_to_move
+                            self.seq_num = ack_seq
+                            self.safe_stop_timer(0) 
+
+                            # Si el Control de Congestión está activo, procesar eventos y actualizar window_size
+                            if self.congestion_control_on and congestion_controller is not None:
+                                for _ in range(steps_to_move):
+                                    congestion_controller.event_ack_received()  
+
+                                window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))
+                                data_window.update_window_size(window_size)
+                                self.print_debug_cc(congestion_controller, "ACK RECIBIDO", data_window) 
+
+                            # CASO BORDE: si el ACK cayó dentro del rango de la ventana previa
+                            # (no superó el final de la ventana completa), finalizar el procesamiento del ACK
+                            if steps_to_move < current_wnd_size:
+                                break   
+
+                except (TimeoutError, socket.timeout):
+                    print("Timeout en Go-Back-N. Reenviando...")
+                    self.safe_stop_timer(0) 
+
+                    # Evento Timeout en Control de Congestión
+                    if self.congestion_control_on and congestion_controller is not None:
+                        congestion_controller.event_timeout()
+                        window_size = max(1, int(congestion_controller.get_MSS_in_cwnd()))
+                        data_window.update_window_size(window_size)
+                        self.print_debug_cc(congestion_controller, "TIMEOUT", data_window)  
+
+                    # Reiniciar banderas de envío para retransmitir la ventana actual
+                    sent = [False] * total_chunks
 
 
     # Para mantener una consistencia de como funcionan los send y recover, el n° seq ira incrementando con el largo del mensaje => mensaje de 16 bits => se devuelve un ack con seq == y + 16
@@ -679,16 +460,7 @@ class SocketTCP():
     # eso porque no se considero en la creacion de la slidingwindow
     # Lo hice asi porque me ahorra el cacho de aumentar en un paquete mas la sliding window y no añadir el mensaje del largo como segmento en el conjunto de segmentos por enviar...
 
-
-
-
-
     def recv_using_go_back_n(self, buff_size: int) -> bytes:
-        """
-        Maneja la recepción Go Back-N. Si el socket aún es del tipo socket.socket, realiza
-        la transición hacia SocketUDP antes de procesar la entrada de datos.
-        """
-
 
         # 1. Transición a SocketUDP conservando la dirección/puerto si aún no se ha realizado
         if not isinstance(self.sock, SocketUDP):
@@ -698,10 +470,6 @@ class SocketTCP():
             new_socket_udp = SocketUDP()
             new_socket_udp.bind(local_address)
             self.sock = new_socket_udp
-
-
-
-        print
 
         # 2. Recepción del mensaje de tamaño total
         if self.remaining_bytes == 0:
@@ -721,7 +489,7 @@ class SocketTCP():
                     self.remaining_bytes = int.from_bytes(mensaje_parseado["payload"], byteorder="big")
                     self.seq_num = mensaje_parseado["seq"]
 
-                    print("enviando seggemento ack")
+                    print("enviando segmento ack")
                     first_ack = self.create_segment(ack=True, syn=False, fin=False, seq=self.seq_num, payload=b"")
                     self.sock.sendto(first_ack, address)
                     break
@@ -778,15 +546,18 @@ class SocketTCP():
 
         return payload_buffer
 
+
+
+
+
+    
+
     def safe_stop_timer(self, timer_index=0):
         try:
             if hasattr(self.sock, 'stop_timer'):
                 self.sock.stop_timer(timer_index)
         except (AttributeError, Exception):
             pass
-
-
-
 
     # Función setter para modificar la variable congestion_control_on
     def set_congestion_control_on(self, value: bool) -> None:

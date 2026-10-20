@@ -25,7 +25,6 @@ address = ("localhost", 8000)
 # client_socketTCP.send(message, mode= "go_back_n")
 
 # # test 3
-# print("test3")
 # message = "Mensaje de largo 19".encode()
 # client_socketTCP.send(message, mode= "go_back_n")
 
@@ -64,32 +63,32 @@ address = ("localhost", 8000)
 
 # Test final parte 3.6
 
-import socketTCP_CONGESTION
+# import socketTCP_CONGESTION
 
-def run_client():
-    server_address = ("localhost", 8000)
-    client = socketTCP_CONGESTION.SocketTCP()
+# def run_client():
+#     server_address = ("localhost", 8000)
+#     client = socketTCP_CONGESTION.SocketTCP()
 
-    # Habilitar Control de Congestión y Modo Debug
-    client.set_congestion_control_on(True)
-    client.set_debug(True)
+#     # Habilitar Control de Congestión y Modo Debug
+#     client.set_congestion_control_on(True)
+#     client.set_debug(True)
 
-    print("[CLIENTE] Conectando al servidor...")
-    client.connect(server_address)
+#     print("[CLIENTE] Conectando al servidor...")
+#     client.connect(server_address)
 
-    # Mensaje largo: 160 bytes = 20 fragmentos de 8 bytes
-    message = ("Este es un mensaje largo de prueba diseñado para observar la evolucion "
-               "completa de la ventana de congestion de Slow Start a Congestion Avoidance.").encode()
+#     # Mensaje largo: 160 bytes = 20 fragmentos de 8 bytes
+#     message = ("Este es un mensaje largo de prueba diseñado para observar la evolucion "
+#                "completa de la ventana de congestion de Slow Start a Congestion Avoidance.").encode()
 
-    print(f"\n[CLIENTE] Enviando mensaje de {len(message)} bytes...")
-    client.send(message, mode="go_back_n")
+#     print(f"\n[CLIENTE] Enviando mensaje de {len(message)} bytes...")
+#     client.send(message, mode="go_back_n")
 
-    print("\n[CLIENTE] Cerrando conexión...")
-    client.close()
-    print("[CLIENTE] Finalizado.")
+#     print("\n[CLIENTE] Cerrando conexión...")
+#     client.close()
+#     print("[CLIENTE] Finalizado.")
 
-if __name__ == "__main__":
-    run_client()
+# if __name__ == "__main__":
+#     run_client()
 
 
 
@@ -99,26 +98,29 @@ if __name__ == "__main__":
 ##############################
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     # Obtener argumentos:
-#     # python3 cliente.py localhost 8000 < archivo.txt
-#     host = sys.argv[1]
-#     port = int(sys.argv[2])
+    # Obtener argumentos:
+    # python3 cliente.py localhost 8000 < archivo.txt
+    # En caso de no seguir estos pasos, el programa fallara por fallo en los argumentos...
+    # Mi forma de usarlo fue el abrir un terminal de Command Prompt donde usaba <---- python cliente.py localhost 8000 < archivo.txt ---->
 
-#     address = (host, port)
+    host = sys.argv[1]
+    port = int(sys.argv[2])
 
-#     # Crear SocketTCP
-#     client_socketTCP = socketTCP_CONGESTION.SocketTCP()
+    address = (host, port)
 
-#     # Conectarse al servidor
-#     client_socketTCP.connect(address)
+    # Crear SocketTCP
+    client_socketTCP = socketTCP_CONGESTION.SocketTCP()
 
-#     # Leer todo el archivo desde stdin
-#     message = sys.stdin.buffer.read()
+    # Conectarse al servidor
+    client_socketTCP.connect(address)
 
-#     # Enviar el contenido utilizando nuestro protocolo
-#     client_socketTCP.send(message, mode= "go_back_n")
+    # Leer todo el archivo desde stdin
+    message = sys.stdin.buffer.read()
 
-#     # Cerrar conexión
-#     client_socketTCP.close()
+    # Enviar el contenido utilizando nuestro protocolo
+    client_socketTCP.send(message, mode= "go_back_n")
+
+    # Cerrar conexión
+    client_socketTCP.close()
