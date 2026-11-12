@@ -8,16 +8,7 @@ import ipaddress
 #Para esta actividad usaremos la siguiente estructura para nuestros paquetes IP:
 #[Dirección IP];[Puerto];[mensaje]
 
-
-
 #PARTE 4: crear estructura de datos para paquetes IP:
-
-
-
-#Ahora, creemos la funcion  función parse_packet(IP_packet: bytes) que le 
-# permita extraer los headers y datos del paquete recibido, y lo pase a una estructura de datos conveniente. 
-# Aquí IP_packet corresponde al paquete en bytes que se recibe a través del socket.
-
 #notar que los ";" usan un byte tambien, asi que no hay q tomarlos en cuenta....
 def parse_packet(IP_packet: bytes):
 
@@ -42,31 +33,13 @@ def create_packet(parsed_IP_packet):
     return address_bytes + b";" + port_bytes + b";" + TTL_bytes + b";" + message_bytes
 
 
-
-
 # PARTE 6: Crear funcion check_routes(routes_file_name: str, destination_address: tuple[str, int])-> tuple[str, int]
-
-#se deberá encargar de revisar en orden la tabla de rutas para indicar la dirección del siguiente salto. Para el formato de la tabla de 
-# rutas puede utilizar directamente la estructura que se muestra en la sección Simulando un mini-Internet. 
-
-# La función check_routes recibe 
-# como parámetros el nombre del archivo que contiene las rutas routes_file_name y la dirección de destino destination_address. Esta función debe 
-# retornar el par (next_hop_IP, next_hop_puerto) que indica por dónde se debe enviar un paquete que se dirige a la dirección de destino destination_address. 
-# Si al recorrer la tabla de rutas no encuentra una ruta apropiada, la función deberá retornar None. 
-
-
-#Como recibe solamente el nombre de la ruta hacia la tabla de rutas, cambie eso en el main.
-
-
-
 
 #  Indica cuántos bits del principio de la dirección IP corresponden a la parte de red (la porción fija). El resto de los bits se utiliza para
 #  identificar a los dispositivos individuales u hosts dentro de esa red.
 
 #• Ejemplo (192.168.1.0/24): El /24 significa que los primeros 24 bits son de red y los últimos 8 bits (32 - 24 = 8) quedan para las direcciones 
 # de los equipos, lo que permite hasta 256 direcciones IP posibles en ese bloque
-
-
 
 # #+----------------------------------------------+-----------------------------------------------+
 # | Destination Network                          | Gateway                                       |
@@ -76,33 +49,10 @@ def create_packet(parsed_IP_packet):
 
 #EJEMPLO DE TABLA: 
 
-
 # 127.0.0.1/24         8882            8882                  127.0.0.1                    8882
  
 # Donde la línea "127.0.0.1/24 8882 8882 127.0.0.1 8882" 
 #indica que si recibo un mensaje que se dirige al grupo de IPs 127.0.0.1/24 con un puerto en el conjunto {8882} (equivalente al rango (8882,8882)), entonces debe reenviarlo o hacer forward hacia la dirección (127.0.0.1,8882). 
-
-
-# Esta línea se traduce como: "Todo lo que reciba en el rango de direcciones IP =[Red (CIDR)] y el rango de puertos =([Puerto_Inicial],[Puerto_final]) 
-# debo enviarlo al par ([IP_siguiente_salto],[Puerto_siguiente_salto])para que continúe su camino". El área de Destination Network es la red de destino
-#  y el área de Gateway corresponde al siguiente salto para llegar a la red de destino. En nuestro mini-Internet el rango de direcciones IP [Red (CIDR)] 
-# corresponde a dirección: 127.0.0.1/24 o direcciones asociadas a localhost# .
-
-# Notemos que el [Puerto_Inicial] y el [Puerto_final] no son el origen y destino, sino la forma que tenemos de agrupar los hosts de la red que pertenecen
-#  a la misma IP pero que están escuchando en distintos puertos. Luego si tenemos  [Puerto_Inicial]=8881 y  [Puerto_final]=8883, tenemos que la ruta considera
-#  el rango de puertos de destino  {8881,8882,# 8883
-
-
-
-#Parte 8: Cambio de funcion check_route para manejar caso donde hay mas de una ruta posible.
-
-# Notemos primero que 
-# La idea es tener una variable global que 
-
-
-# Guarda el índice de la última ruta utilizada para cada destino.
-# Ejemplo: 127.0.0.2/24: 3 --> La ultima ruta usada fue la tercera 
-# leida de la tabla de rutas dada al router.
 
 rutas_utilizadas = {}
 
@@ -153,10 +103,6 @@ def check_routes(routes_file_name: str, destination_address: tuple[str, int]) ->
     return siguiente_salto
 
 
-
-
-
-
 # Haga que el código de su router pueda recibir paquetes en un loop. En caso de recibir un mensaje, haga que su router primero 
 # chequee si el paquete es para él. 
 # 
@@ -166,8 +112,6 @@ def check_routes(routes_file_name: str, destination_address: tuple[str, int]) ->
 # Haga que su router imprima el mensaje "redirigiendo paquete [paquete_ip] con destino final [destination_address] desde [dirección_router_actual] "
 # "hacia [dirección_next_hop]" donde [dirección_next_hop] es la dirección que obtuvo de la función check_routes. En caso de que su función 
 # retorne None simplemente ignore el paquete e imprima "No hay rutas hacia [destination_address] para paquete [paquete_ip]".
-
-
 
 # crear socket del router y asignarle con sys.args la ip y el puerto donde escuchara
 router_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)

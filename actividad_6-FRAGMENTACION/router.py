@@ -90,28 +90,6 @@ def create_packet(parsed_IP_packet):
 
 # PARTE 6: Crear funcion check_routes(routes_file_name: str, destination_address: tuple[str, int])-> tuple[str, int]
 
-#se deberá encargar de revisar en orden la tabla de rutas para indicar la dirección del siguiente salto. Para el formato de la tabla de 
-# rutas puede utilizar directamente la estructura que se muestra en la sección Simulando un mini-Internet. 
-
-# La función check_routes recibe 
-# como parámetros el nombre del archivo que contiene las rutas routes_file_name y la dirección de destino destination_address. Esta función debe 
-# retornar el par (next_hop_IP, next_hop_puerto) que indica por dónde se debe enviar un paquete que se dirige a la dirección de destino destination_address. 
-# Si al recorrer la tabla de rutas no encuentra una ruta apropiada, la función deberá retornar None. 
-
-
-#Como recibe solamente el nombre de la ruta hacia la tabla de rutas, cambie eso en el main.
-
-
-
-
-#  Indica cuántos bits del principio de la dirección IP corresponden a la parte de red (la porción fija). El resto de los bits se utiliza para
-#  identificar a los dispositivos individuales u hosts dentro de esa red.
-
-#• Ejemplo (192.168.1.0/24): El /24 significa que los primeros 24 bits son de red y los últimos 8 bits (32 - 24 = 8) quedan para las direcciones 
-# de los equipos, lo que permite hasta 256 direcciones IP posibles en ese bloque
-
-
-
 # #+----------------------------------------------+-----------------------------------------------+
 # | Destination Network                          | Gateway                                       |
 # +----------------------------------------------+-----------------------------------------------+
@@ -125,18 +103,6 @@ def create_packet(parsed_IP_packet):
  
 # Donde la línea "127.0.0.1/24 8882 8882 127.0.0.1 8882" 
 #indica que si recibo un mensaje que se dirige al grupo de IPs 127.0.0.1/24 con un puerto en el conjunto {8882} (equivalente al rango (8882,8882)), entonces debe reenviarlo o hacer forward hacia la dirección (127.0.0.1,8882). 
-
-
-# Esta línea se traduce como: "Todo lo que reciba en el rango de direcciones IP =[Red (CIDR)] y el rango de puertos =([Puerto_Inicial],[Puerto_final]) 
-# debo enviarlo al par ([IP_siguiente_salto],[Puerto_siguiente_salto])para que continúe su camino". El área de Destination Network es la red de destino
-#  y el área de Gateway corresponde al siguiente salto para llegar a la red de destino. En nuestro mini-Internet el rango de direcciones IP [Red (CIDR)] 
-# corresponde a dirección: 127.0.0.1/24 o direcciones asociadas a localhost# .
-
-# Notemos que el [Puerto_Inicial] y el [Puerto_final] no son el origen y destino, sino la forma que tenemos de agrupar los hosts de la red que pertenecen
-#  a la misma IP pero que están escuchando en distintos puertos. Luego si tenemos  [Puerto_Inicial]=8881 y  [Puerto_final]=8883, tenemos que la ruta considera
-#  el rango de puertos de destino  {8881,8882,# 8883
-
-
 
 #Parte 8: Cambio de funcion check_route para manejar caso donde hay mas de una ruta posible.
 
@@ -201,21 +167,6 @@ def check_routes(routes_file_name: str, destination_address: tuple[str, int]) ->
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def fragment_IP_packet(IP_packet: bytes, MTU: int):
 
     # Caso 1: El paquete cabe por el enlace.
@@ -270,32 +221,16 @@ def fragment_IP_packet(IP_packet: bytes, MTU: int):
     return fragmentos
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def reassemble_IP_packet(fragment_list):
 
-    # Caso 1: Lista vacía.
+    # Lista vacía.
     if len(fragment_list) == 0:
         return None
 
-    # Convertimos todos los fragmentos a diccionarios.
     fragmentos_parseados = [
         parse_packet(fragmento) for fragmento in fragment_list
     ]
 
-    # Caso 2: Solo hay un paquete.
     if len(fragmentos_parseados) == 1:
 
         fragmento = fragmentos_parseados[0]
@@ -311,9 +246,6 @@ def reassemble_IP_packet(fragment_list):
         # En caso contrario, la lista está incompleta.
         return None
 
-    # Caso 3: Hay varios fragmentos.
-    
-    # Comprobamos que todos pertenezcan al mismo paquete.
     primer_fragmento = fragmentos_parseados[0]
 
     for fragmento in fragmentos_parseados:
@@ -349,8 +281,6 @@ def reassemble_IP_packet(fragment_list):
         mensaje_reconstruido += mensaje
         offset_esperado += len(mensaje)
 
-        # Todos los fragmentos anteriores al último
-        # deben indicar que quedan más fragmentos.
         if i < len(fragmentos_parseados) - 1:
 
             if fragmento["FLAG"] != 1:
@@ -371,11 +301,6 @@ def reassemble_IP_packet(fragment_list):
     paquete_reconstruido["IP_message"] = mensaje_reconstruido
 
     return create_packet(paquete_reconstruido)
-
-
-
-
-
 
 
 # Creamos un paquete original.
@@ -422,26 +347,6 @@ print("\nCaso 3: Lista incompleta")
 print("Resultado:", resultado)
 
 
-
-
-
-
-
-
-
-# Haga que el código de su router pueda recibir paquetes en un loop. En caso de recibir un mensaje, haga que su router primero 
-# chequee si el paquete es para él. 
-# 
-# Si es para él, haga que este imprima el contenido del paquete (sin headers). 
-# 
-# Si el paquete no es para él, llame a la función check_routes y use la dirección que esta retorna para hacer forward del paquete. 
-# Haga que su router imprima el mensaje "redirigiendo paquete [paquete_ip] con destino final [destination_address] desde [dirección_router_actual] "
-# "hacia [dirección_next_hop]" donde [dirección_next_hop] es la dirección que obtuvo de la función check_routes. En caso de que su función 
-# retorne None simplemente ignore el paquete e imprima "No hay rutas hacia [destination_address] para paquete [paquete_ip]".
-
-
-
-# crear socket del router y asignarle con sys.args la ip y el puerto donde escuchara
 router_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 
 # Obtener ip y puerto
@@ -452,9 +357,6 @@ router_dir = (router_ip,router_port)
 # Obtener tabla de rutas del router
 
 archivo_rutas = sys.argv[3]
-
-
-
 fragmentos_recibidos = {}
 
 #bindear direccion a socket de router
@@ -473,8 +375,6 @@ while True:
     if mensaje_parseado['address'] == router_ip and mensaje_parseado['IP_port'] == router_port:
         print(f"mensaje recibido: {mensaje_parseado['IP_message']}")
 
-        #caso fragmentos:
-         # Almacenar paquete o fragmento recibido
         id_paquete = mensaje_parseado["ID"]
 
         if id_paquete not in fragmentos_recibidos:
@@ -534,32 +434,3 @@ while True:
                 f"No hay rutas hacia {mensaje_parseado['address']} "
                 f"para paquete {mensaje_parseado['IP_message']}"
             )
-
-
-
-
-
-
-
-
-# # -------------------------------
-# # TEST parte 2.1 (funciona perfect c:)
-# # -------------------------------
-
-# # Creamos manualmente un paquete en bytes
-# IP_packet_v1 = b"127.0.0.1;8082;10;Hola r2"
-
-# # Convertimos el paquete a un diccionario
-# parsed_IP_packet = parse_packet(IP_packet_v1)
-
-# # Reconstruimos el paquete
-# IP_packet_v2 = create_packet(parsed_IP_packet)
-
-# # Mostramos resultados
-# print("Paquete original:", IP_packet_v1)
-# print("Paquete parseado:", parsed_IP_packet)
-# print("Paquete reconstruido:", IP_packet_v2)
-
-# print("IP_packet_v1 == IP_packet_v2 ? {}".format(
-#     IP_packet_v1 == IP_packet_v2
-# ))
