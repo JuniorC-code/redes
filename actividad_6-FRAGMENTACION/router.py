@@ -147,8 +147,6 @@ def create_packet(parsed_IP_packet):
 # Guarda el índice de la última ruta utilizada para cada destino.
 # Ejemplo: 127.0.0.2/24: 3 --> La ultima ruta usada fue la tercera 
 # leida de la tabla de rutas dada al router.
-rutas_utilizadas = {}
-
 
 rutas_utilizadas = {}
 
