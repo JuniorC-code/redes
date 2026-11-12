@@ -30,10 +30,8 @@ def parse_packet(IP_packet: bytes):
         "IP_message": IP_message
     }
 
-#Además cree la función create_packet(parsed_IP_packet) que recibe como entrada la estructura de datos conveniente (parsed_IP_packet) 
-# y, a partir de ella, crea un paquete IP de acuerdo a la estructura que usted definió.
 
-# Recibe un diccionario con address, IP_port y IP-message
+# Recibe un diccionario con address, IP_port, TTL y IP-message
 def create_packet(parsed_IP_packet):
 
     address_bytes = parsed_IP_packet["address"].encode()
@@ -105,8 +103,6 @@ def create_packet(parsed_IP_packet):
 # Guarda el índice de la última ruta utilizada para cada destino.
 # Ejemplo: 127.0.0.2/24: 3 --> La ultima ruta usada fue la tercera 
 # leida de la tabla de rutas dada al router.
-rutas_utilizadas = {}
-
 
 rutas_utilizadas = {}
 
